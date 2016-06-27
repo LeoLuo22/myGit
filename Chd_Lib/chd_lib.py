@@ -11,8 +11,9 @@ import pytesseract
 import re
 import collections
 import time
+from io import StringIO
 
-
+init_page = "http://wiscom.chd.edu.cn:8080/reader/login.php"
 captcha_url = "http://wiscom.chd.edu.cn:8080/reader/captcha.php"
 redr_verify = "http://wiscom.chd.edu.cn:8080/reader/redr_verify.php" #POST
 redr_infp = "http://wiscom.chd.edu.cn:8080/reader/redr_info.php"#GET
@@ -29,10 +30,13 @@ HEADERS = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36
                         'Referer':'http://portal.chd.edu.cn/',
                         'Upgrade-Insecure-Requests':'1'}
 
+session = requests.Session()
+session.get(init_page)
+
 class InputError(Exception):pass
 
 class Chdlib:
-    def __init__(self, username=None, password=None, captcha=None, name=None, book_info_dict=None):
+    def __init__(self, username=None, password=None, captcha=None, name=None, book_info_dict=None, cookie=None):
         self.__username = username
         self.__password = password
         self.__captcha = captcha
@@ -77,43 +81,72 @@ class Chdlib:
         return self.__name
 
     def get_captcha(self):
+        """*****************Use Urllib and http.cookiejar************************
         cj = http.cookiejar.LWPCookieJar()
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
         urllib.request.install_opener(opener)
         req = urllib.request.Request("http://wiscom.chd.edu.cn:8080/reader/captcha.php")
+        print("captcha: {0}".format(cj))
+        self.__cookie = cj
         operate = opener.open(req)
         msg = operate.read()
+        """
+        """***************************use requests********************************"""
+        r = session.get("http://wiscom.chd.edu.cn:8080/reader/captcha.php")
+        with open('captcha.gif', 'wb') as fd:
+                fd.write(r.content)
+        """
         file_object = open('captcha.gif','wb')
         try:
             file_object.write(msg)
         finally:
             file_object.close()
+        """
         im = Image.open('captcha.gif')
         code = pytesseract.image_to_string(Image.open('captcha.gif'))
         return code
 
 
     def login(self):
+        """
         postdata = urllib.parse.urlencode(self.__post_data)
         postdata = postdata.encode('utf-8')
+        """"""
         res = urllib.request.urlopen(redr_verify,postdata)
-        if(res.status == 200):
+        """
+        res = session.post(redr_verify, data=self.__post_data)
+        if(res.status_code == 200):
             print("登陆成功")
-        return res.read()
+        return res.content.decode('utf-8')
 
     def book_lst(self):
+        """
         book_lst_page = urllib.request.urlopen(book_lst)
         return book_lst_page.read()
+        """
+        book_lst_page = session.get(book_lst)
+        return book_lst_page.text
 
     def continue_borrow(self, captcha, seq_num=None):
         get_data = collections.OrderedDict()
-        get_data['bar_code'] = self.__book_info_dict[seq_num][2]
-        get_data["check"] = self.__book_info_dict[seq_num][3]
-        get_data["captcha"] = str(captcha)
-        get_data["time"] = str(int(round(time.time() * 1000)))
-        print(str(int(round(time.time() * 1000))), len(str(int(round(time.time() * 1000)))))
-        url = continue_borrow_url +  "bar_code=" +self.__book_info_dict[seq_num][2] + "&check=" + self.__book_info_dict[seq_num][3] + "&captcha=" + str(captcha) + "&time=" + str(int(round(time.time() * 1000)))
-        print(url)
+        if seq_num == None:
+            for i in range(0,len(self.__book_info_dict)):
+                get_data['bar_code'] = self.__book_info_dict[i][2]
+                get_data["check"] = self.__book_info_dict[i][3]
+                get_data["captcha"] = str(captcha)
+                get_data["time"] = str(int(round(time.time() * 1000)))
+                r = session.get(continue_borrow_url, params=get_data)
+                continue_borrow_soup = BeautifulSoup(r.content.decode('utf-8'), 'lxml')
+                print("{0}  {1}".format(self.__book_info_dict[i][0],continue_borrow_soup.font.string))
+                get_data = collections.OrderedDict()
+        else:
+            get_data['bar_code'] = self.__book_info_dict[seq_num][2]
+            get_data["check"] = self.__book_info_dict[seq_num][3]
+            get_data["captcha"] = str(captcha)
+            get_data["time"] = str(int(round(time.time() * 1000)))
+            print(str(int(round(time.time() * 1000))), len(str(int(round(time.time() * 1000)))))
+            url = continue_borrow_url +  "bar_code=" +self.__book_info_dict[seq_num][2] + "&check=" + self.__book_info_dict[seq_num][3] + "&captcha=" + str(captcha) + "&time=" + str(int(round(time.time() * 1000)))
+            """
         cj = http.cookiejar.LWPCookieJar()
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
         urllib.request.install_opener(opener)
@@ -121,6 +154,10 @@ class Chdlib:
         operate = opener.open(req)
         print(operate.read())
         #print(r.read())
+        """
+            r =session.get(url)
+            continue_borrow_soup = BeautifulSoup(r.content.decode('utf-8'), 'lxml')
+            print(print("{0}  {1}".format(self.__book_info_dict[seq_num][0],continue_borrow_soup.font.string)))
 
 
     def parse(self):
@@ -195,6 +232,17 @@ def get_input(msg,  _type, username=None):
             return password
         else:
             return password
+    elif _type == "seq_num":
+        while True:
+            seq_num = input(msg)
+            if len(seq_num) == 0:
+                return None
+            seq_num = int(seq_num)
+            if seq_num not in range(0,5):
+                print("输入有误")
+                continue
+            break
+        return seq_num
 
 def main():
     user = Chdlib()
@@ -210,9 +258,11 @@ def main():
         print("")
         print("{0}  {1}            归还日期: {2}".format(key, value[0], value[1]))
     captcha = user.get_captcha()
-    user.continue_borrow(captcha, 0)
+    seq_num = get_input("请输入要续借的序号，默认全部续借(按回车): ", "seq_num")
+    user.continue_borrow(captcha, seq_num)
 
-main()
+if __name__ == "__main__":
+    main()
 
 
 
