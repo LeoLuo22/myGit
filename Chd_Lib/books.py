@@ -8,6 +8,7 @@ import collections
 import os
 
 BASE_URL = "http://wiscom.chd.edu.cn:8080/opac/item.php"
+
 class Books():
     def __init__(self, header=None, filename=None):
         self.__header = header
@@ -30,7 +31,7 @@ class Books():
         test  = soup.find('dd')
         title = test.a.string
         test.a.decompose()
-        name  = test.string
+        name  = test.string.replace("/", "_")
         filename = title + name
         result.append(filename)
         douban_url = soup.find_all('a',attrs={'target':'_blank'})
@@ -55,7 +56,7 @@ class Books():
         content = d.content
         now_path = os.path.abspath('.')
         save_path  = now_path + "/book/"
-        filename = save_path + filename + ".jpg"
+        filename = "{0}{1}".format(filename,".jpg")
         try:
             with open(filename, 'wb') as fh:
                 fh.write(content)
