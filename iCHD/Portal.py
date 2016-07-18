@@ -14,7 +14,7 @@ BASE_URL = "http://ids.chd.edu.cn/authserver/login?service=http%3A%2F%2Fportal.c
 LOGIN_URL = "http://ids.chd.edu.cn/authserver/login?service=http%3A%2F%2Fportal.chd.edu.cn%2F"
 AFFAIR_URL = "http://portal.chd.edu.cn/?.pn=p1143_p1144_p1131"#教务系统
 TO_DO_URL = "http://portal.chd.edu.cn/pnull.portal?rar=&.pmn=view&.ia=false&action=informationAjax&.pen=information"
-
+#captchaResponse:z8dc
 session = requests.Session()
 
 class Chd(object):
@@ -50,6 +50,14 @@ class Chd(object):
         self.__POST_DATA['username'] = username
         self.__POST_DATA['password'] = password
         #print(self.POST_DATA)
+
+    def get_captcha(self):
+        r = session.get("http://ids.chd.edu.cn/authserver/captcha.html")
+        captcha = r.content
+        with open('captcha.png', 'wb') as fh:
+            fh.write(captcha)
+        im = Image.open('captcha.png')
+        im.show()
 
     def login(self):
         contents = {}
@@ -106,7 +114,11 @@ class Parse(object):
 
     def get_user_img_url(self):
         index_soup = self.parse_content
-        user_img_para = index_soup.find('img', attrs={"onerror":"this.src=\'images/defaultFace.jpg\'"})["src"]
+        try:
+            user_img_para = index_soup.find('img', attrs={"onerror":"this.src=\'images/defaultFace.jpg\'"})["src"]
+        except TypeError as err:
+            print("出现错误, 请重新登录")
+            main()
         user_img_para = str(user_img_para).replace("amp;","")
         user_img_url = "http://portal.chd.edu.cn/" + user_img_para
         return user_img_url
@@ -161,25 +173,22 @@ def get_input(msg,  _type):
 
 def main():
     user = Chd()
-    user_info_all = {}
     username = get_input("请输入用户名: ","username")
     password = get_input("请输入密码: ","password")
     user.create_post_data(username, password)
+    #user.get_captcha()
     contents  = user.login()
-    #print(index_content)
-    #user.affair_login()
     parser = Parse(contents['index'])
     user_img_url = parser.get_user_img_url()
     #print(user_img_url)
-    #user.show_user_img(user_img_url)
+    option = input("请选择是否显示头像: (y/n)")
+    if option == 'y' or option == "Y":
+        user.show_user_img(user_img_url)
+    else:
+        pass
     parser.get_user_info()
-    user_info_all = parser.get_user_info
-    #print(parser.user_info)
-    #print(contents["to_do_info"])
-    parser = Parse(contents["to_do_info"])
-    parser.get_other_info()
-    user_info_all['余额'] = parser.user_info['money']
-    print(user_info_all)
-
+    other = Parse(contents["to_do_info"])
+    other.get_other_info()
+    print("你当前校园卡的余额为: {0}".format(other.user_info['money']))
 if __name__ == "__main__":
     main()
