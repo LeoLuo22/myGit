@@ -8,6 +8,7 @@ import lxml
 import collections
 from PIL import Image
 import string
+import sys
 
 HEAD  = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'}
 BASE_URL = "http://ids.chd.edu.cn/authserver/login?service=http%3A%2F%2Fportal.chd.edu.cn%2F"#通过这个url获得lt
@@ -19,9 +20,11 @@ session = requests.Session()
 
 Flag = True
 
+class InputError(Exception):pass
+
 class Chd(object):
 
-    def __init__(self, POST_DATA=None):
+    def __init__(self, POST_DATA=None, POST_DATA_WITH_CAPTCHA=None):
         super().__init__()
         POST_DATA = collections.OrderedDict()
         POST_DATA['username'] = ''
@@ -33,6 +36,26 @@ class Chd(object):
         POST_DATA['_eventId'] = 'submit'
         POST_DATA['rmShown'] = '1'
         self.__POST_DATA = POST_DATA
+        """*****************New***************"""
+        POST_DATA_WITH_CAPTCHA = collections.OrderedDict()
+        POST_DATA_WITH_CAPTCHA['username'] = ''
+        POST_DATA_WITH_CAPTCHA['password'] = ''
+        POST_DATA_WITH_CAPTCHA['btn'] = ''
+        POST_DATA_WITH_CAPTCHA['lt'] = ''
+        POST_DATA_WITH_CAPTCHA['dllt'] = 'userNamePasswordLogin'
+        POST_DATA_WITH_CAPTCHA['execution'] = 'e1s1'
+        POST_DATA_WITH_CAPTCHA['_eventId'] = 'submit'
+        POST_DATA_WITH_CAPTCHA['rmShown'] = '1'
+        POST_DATA_WITH_CAPTCHA['captcha'] = ""
+        self.__POST_DATA_WITH_CAPTCHA = POST_DATA_WITH_CAPTCHA
+
+    @property
+    def POST_DATA_WITH_CAPTCHA(self):
+        return self.__POST_DATA_WITH_CAPTCHA
+
+    @POST_DATA_WITH_CAPTCHA.setter
+    def POST_DATA_WITH_CAPTCHA(self, value):
+        self.__POST_DATA_WITH_CAPTCHA = value
 
     @property
     def POST_DATA(self):
@@ -45,7 +68,11 @@ class Chd(object):
     """**********************生成要发送的数据************************"""
     def create_post_data(self, username, password, flag):
         if flag == "no_captcha":
-            r = session.get(BASE_URL)
+            try:
+                r = session.get(BASE_URL)
+            except requests.exceptions.ConnectionError as err:
+                print("无网络连接，程序退出")
+                sys.exit()
             base = r.content.decode('utf-8')
             base_soup = BeautifulSoup(base,'lxml')
             lt = base_soup.find('input',attrs={'type':'hidden', 'name':'lt'})['value']#时间戳
@@ -62,12 +89,10 @@ class Chd(object):
             payload['_'] = lt
             self.get_captcha(payload)
             captcha = get_input("请输入验证码: ", "captcha")
-            self.__POST_DATA['captcha'] = captcha
-            self.__POST_DATA['lt'] = lt
-            self.__POST_DATA['username'] = username
-            self.__POST_DATA['password'] = password
-
-        #print(self.POST_DATA)
+            self.__POST_DATA_WITH_CAPTCHA['captcha'] = captcha
+            self.__POST_DATA_WITH_CAPTCHA['lt'] = lt
+            self.__POST_DATA_WITH_CAPTCHA['username'] = username
+            self.__POST_DATA_WITH_CAPTCHA['password'] = password
 
     def get_captcha(self, payload):
         r = session.get("http://ids.chd.edu.cn/authserver/captcha.html", params=payload)
@@ -77,26 +102,36 @@ class Chd(object):
         im = Image.open('captcha.png')
         im.show()
 
-    def login(self):
+    def login(self, flag):
         contents = {}
-        try:
-            login = session.post(BASE_URL, params=self.POST_DATA, headers=HEAD)
-        except requests.exceptions.TooManyRedirects as err:
-            print("出现错误，请重新登录")
-            Flag = False
-            main()
-            return 0
-        login = login.content.decode('utf-8')
-        contents["index"] = login
-        """ FUCK
-        soup = BeautifulSoup(login, 'lxml')
-        soup = soup.find('a', attrs={'title':'最大化', 'class':'maximize'})['href']
-        TO_DO_URL = "http://portal.chd.edu.cn/" + soup
-        """
-        r = session.get(TO_DO_URL, headers=HEAD)
-        res = r.content.decode('utf-8')
-        contents["to_do_info"] = res
-        return contents
+        if flag == "no_captcha":
+            try:
+                login = session.post(BASE_URL, params=self.POST_DATA, headers=HEAD)
+            except requests.exceptions.TooManyRedirects as err:
+                print("出现错误，请重新登录")
+                Flag = False
+                main()
+                return 0
+            login = login.content.decode('utf-8')
+            contents["index"] = login
+            r = session.get(TO_DO_URL, headers=HEAD)
+            res = r.content.decode('utf-8')
+            contents["to_do_info"] = res
+            return contents
+        elif flag == "captcha":
+            try:
+                login = session.post(BASE_URL, params=self.POST_DATA_WITH_CAPTCHA, headers=HEAD)
+            except requests.exceptions.TooManyRedirects as err:
+                print("出现错误，请重新登录")
+                Flag = False
+                main()
+                return 0
+            login = login.content.decode('utf-8')
+            contents["index"] = login
+            r = session.get(TO_DO_URL, headers=HEAD)
+            res = r.content.decode('utf-8')
+            contents["to_do_info"] = res
+            return contents
 
     def affair_login(self):
         affair_login = session.get(AFFAIR_URL)
@@ -178,11 +213,14 @@ class Parse(object):
 def get_input(msg,  _type):
     if _type == 'username':
         while  True:
-            username = input(msg)
-            if len(username) != 12 or  not username.isdigit():
-                print("输入有误， 请重新输入")
+            try:
+                username = input(msg)
+                if len(username) != 12 or  not username.isdigit():
+                    raise InputError()
+                break
+            except InputError as err:
+                print("输入有误， 请重新输入，学号应为12位数字")
                 continue
-            break
         return username
 
     elif _type == "password":
@@ -220,7 +258,7 @@ def main():
         password = get_input("请输入密码: ","password")
         user.create_post_data(username, password, "no_captcha")
         #user.get_captcha()
-        contents  = user.login()
+        contents  = user.login("no_captcha")
         parser = Parse(contents['index'])
         #user_img_url = parser.get_user_img_url()
         #print(user_img_url)
