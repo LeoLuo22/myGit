@@ -208,6 +208,24 @@ class Parse(object):
         _money = _money_raw.find('font').string
         self.user_info['money'] = _money
 
+    def get_courses(self):
+        soup = self.parse_content
+        xn = soup.find('input', attrs={'id':'xn', 'name':'xn'})['value']
+        xq = soup.find('input', attrs={'id':'xq', 'name':'xq'})['value']
+        currentweek = soup.find('input', attrs={'id':'currentWeek', 'name':'currentWeek'})['value'].strip()
+        print("你在 {0} 学年第 {1} 学期第 {2} 周的课程为：".format(xn, xq, currentweek))
+        tableDiv = soup.find('div', attrs={'id':'tableDiv'})
+        tableDiv = tableDiv.find_all('td', attrs={'class':'simpletooltip'})
+        for res in tableDiv:
+            #print(res['title'])
+            res = res['title'].split("<br/>")
+            print(res)
+        #print(type(tableDiv))
+        #print(tableDiv)
+        #print(xn, xq, currentweek)
+
+
+
 
 
 def get_input(msg,  _type):
@@ -259,16 +277,16 @@ def main():
         user.create_post_data(username, password, "no_captcha")
         #user.get_captcha()
         contents  = user.login("no_captcha")
+        #print(contents['index'])
         parser = Parse(contents['index'])
-        #user_img_url = parser.get_user_img_url()
+        parser.get_courses()
+        user_img_url = parser.get_user_img_url()
         #print(user_img_url)
-        #option = input("请选择是否显示头像: (y/n)")
-        """
+        option = input("请选择是否显示头像: (y/n)")
         if option == 'y' or option == "Y":
             user.show_user_img(user_img_url)
         else:
             pass
-            """
         parser.get_user_info()
         other = Parse(contents["to_do_info"])
         other.get_other_info()
@@ -281,15 +299,13 @@ def main():
         #user.get_captcha()
         contents  = user.login()
         parser = Parse(contents['index'])
-        #user_img_url = parser.get_user_img_url()
-        #print(user_img_url)
-        #option = input("请选择是否显示头像: (y/n)")
-        """
+        user_img_url = parser.get_user_img_url()
+        print(user_img_url)
+        option = input("请选择是否显示头像: (y/n)")
         if option == 'y' or option == "Y":
             user.show_user_img(user_img_url)
         else:
             pass
-            """
         parser.get_user_info()
         other = Parse(contents["to_do_info"])
         other.get_other_info()
