@@ -6,6 +6,7 @@ from datetime import datetime
 import os
 import sys
 import collections
+import shutil
 
 class InputError(Exception):pass
 
@@ -145,7 +146,7 @@ def get_input(msg, _type):
                 print("输入有误！请重新选择。")
                 get_input(msg, _type)
             try:
-                if option not in range(1,10):
+                if option not in range(1,50):
                     raise InputError()
             except InputError as err:
                 print("Wrong input.")
@@ -183,18 +184,42 @@ def generate_sql(operation):
 
 def main():
     while True:
-        option = get_input("请选择功能: 1.新建 2.删除 3.修改 4.查询 5.显示已有数据库 6.退出: ", "option")
+        db = exist_db()
+        if len(db) == 0:
+            print("There is no database file in this directory".center(200, "*"))
+        else:
+            print("现有的数据库文件有: ")
+            for key, value in db.items():
+                print("{0}   {1}".format(key,value))
+        option = get_input("请选择功能: 1.新建 2.删除 3.修改 4.查询 5.退出: ", "option")
         goal = Goal()
         if option == 1:
             name = input("请输入新建数据库名称: ")
+            if len(name) == 0:
+                print("The name shouldn't be null".center(200,"*"))
+                continue
             goal.file_add(name)
             if ((name+".db") in exist_db().values()):
                 print(" {0} 已成功创建".format(name))
-            goal_name = input("请输入新目标名称: ")
+            goal_name = input("Enter the new goal's name: ")
+            if len(goal_name) == 0:
+                print("The name shouldn't be null".center(200,"*"))
+                continue
             goal.set_new_goal(name, goal_name)
 
         elif option == 2:
-            pass
+            seq_num = get_input("Please input the sequence number of database file: ", "option")
+            try:
+                delete_db_name = db[int(seq_num)]
+            except KeyError as err:
+                print("An error occured: {0}".format(err).center(200,"*"))
+                continue
+            #print(os.getcwd())
+            path = os.getcwd() + "\\" +delete_db_name
+            os.remove(path)
+            if delete_db_name not in exist_db().values():
+                print("{0} has been successfully deleted. ".format(delete_db_name).center(200,"*"))
+            continue
         elif option == 3:
             pass
         elif option == 4:
@@ -202,24 +227,16 @@ def main():
             db_name = db[int(select_option)]
             #print(db_name)
             #goal.show(db_name, "select * from goal order by id desc", 2)
-            verify = input("你今天完成了吗？(y/n): ")
+            verify = input("Have you done your goal today? (y/n): ")
             if verify == "y" or verify == "Y":
                 goal.add_to_record(db_name, True)
                 goal.show_accomplish(db_name)
                 continue
-
             else:
                 goal.add_to_record(db_name, False)
                 goal.show_accomplish(db_name)
                 continue
-
         elif option == 5:
-            print("现有的数据库文件有: ")
-            db = exist_db()
-            for key, value in db.items():
-                print("{0}   {1}".format(key,value))
-
-        elif option == 6:
             print("\n" + "Thanks for using! ".center(250))
             sys.exit()
 
