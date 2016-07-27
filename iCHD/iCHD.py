@@ -8,6 +8,7 @@ import lxml
 import os
 from chd_lib import Chdlib
 import Portal
+import sys
 
 BASE_URP_URL = "http://bksjw.chd.edu.cn"
 LOGIN_URL = "http://bksjw.chd.edu.cn/loginAction.do"
@@ -154,7 +155,7 @@ def main():
     while True:
         while True:
             option = input("请选择功能(输入对应信号): 1.查询本学期成绩 2.查看所借的书籍及续借 3.教务系统 4. 退出程序: ")
-            if int(option) == None or int(option) not in [1, 2, 3]:
+            if int(option) == None or int(option) not in [1, 2, 3, 4]:
                 print("输入有误，请重新输入")
                 continue
             break
@@ -197,10 +198,10 @@ def main():
             Portal.main()
 
         elif int(option) == 4:
-            confirm = input("确认要退出吗? (y/n)")
+            confirm = input("确认要退出吗? (y/n): ")
             if confirm == 'y' or confirm == 'Y':
                 print("谢谢使用")
-                break
+                sys.exit()
             else:
                 continue
     os.system("pause")
